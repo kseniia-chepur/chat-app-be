@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const getUser = (searchParam) => UserModel.findOne({ searchParam });
 
 const registerNewUser = async (userData) => {
-  const { firstName, lastName, email, password } = userData;
+  const { firstName, lastName, email, password, photo } = userData;
 
   const isEmailRegistered = await UserModel.findOne({ email });
 
@@ -21,6 +21,7 @@ const registerNewUser = async (userData) => {
     lastName,
     email,
     password: hashedpassword,
+    photo,
   });
 
   const newUser = await newUserData.save();
@@ -80,10 +81,21 @@ const updateUser = async (token, userData) => {
   return updatedUser;
 };
 
+const searchUser = async (searchParam) => {
+  const query = new RegExp(searchParam, 'i', 'g');
+
+  const user = await UserModel.find({
+    $or: [{ firstName: query }, { lastName: query }, { email: query }],
+  }).select('-password');
+
+  return user;
+};
+
 module.exports = {
   getUser,
   registerNewUser,
   loginUser,
   getUserDataFromToken,
   updateUser,
+  searchUser,
 };
