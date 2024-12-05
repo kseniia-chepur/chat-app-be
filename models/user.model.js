@@ -24,6 +24,9 @@ const userSchema = new mongooise.Schema(
       default: '',
     },
   },
+  {
+    timestamps: true,
+  }
 );
 
 const UserModel = mongooise.model('User', userSchema);

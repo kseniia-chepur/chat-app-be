@@ -4,13 +4,12 @@ const cors = require('cors');
 require('dotenv').config();
 const cookieParser = require('cookie-parser');
 const router = require('./routes/user.router');
+const { app, server } = require('./socket');
 
-const app = express();
-
-let { PORT, MONGODB_URL } = process.env;
+let { PORT, MONGODB_URL, FE_URL } = process.env;
 
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: FE_URL,
   credentials: true,
 }));
 
@@ -23,7 +22,7 @@ PORT = PORT ?? 8080;
 
 mongoose
   .connect(MONGODB_URL)
-  .then(() => app.listen(PORT))
+  .then(() => server.listen(PORT))
   .catch((err) => {
     console.error('Failed to connect to MongoDB Atlas:', err);
     process.exit(1);

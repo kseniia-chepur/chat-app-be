@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 
 const getUser = (searchParam) => UserModel.findOne({ searchParam });
 
+const getUserById = (id) => UserModel.findById(id);
+
 const registerNewUser = async (userData) => {
   const { firstName, lastName, email, password, photo } = userData;
 
@@ -58,7 +60,10 @@ const loginUser = async (loginData) => {
 
 const getUserDataFromToken = async (token) => {
   if (!token) {
-    throw new Error('Out of session');
+    return {
+      message: 'Out of session',
+      logout: true,
+    };
   }
 
   const decodedTokenData = await jwt.verify(token, process.env.JWT_SECRET_KEY);
@@ -93,6 +98,7 @@ const searchUser = async (searchParam) => {
 
 module.exports = {
   getUser,
+  getUserById,
   registerNewUser,
   loginUser,
   getUserDataFromToken,
