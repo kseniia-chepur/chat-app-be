@@ -46,7 +46,20 @@ const updateConversation = async (data, conversation, message) => {
     .populate('messages')
     .sort({ updatedAt: -1 });
 
-  return conversationMessages;
+  return conversationMessages?.messages || [];
+};
+
+const getMessages = async (currentUser, userId) => {
+  const conversation = await ConversationModel.findOne({
+    $or: [
+      { sender: currentUser?._id, receiver: userId },
+      { sender: userId, receiver: currentUser?._id },
+    ],
+  })
+    .populate('messages')
+    .sort({ updatedAt: -1 });
+
+    return conversation?.messages || [];
 };
 
 const getConversationMessages = async (currentUserId) => {
@@ -63,24 +76,46 @@ const getConversationMessages = async (currentUserId) => {
 
     conversation = currentUserConversation.map((obj) => {
       let unreadMsg = obj.messages.reduce(
-        (total, current) => total + (current.read ? 0 : 1),
+        (total, current) =>
+          current?.sentBy.toString() !== currentUserId
+            ? total + (current.read ? 0 : 1)
+            : total,
         0
       );
+
       return {
         _id: obj?._id,
         sender: obj?.sender,
         receiver: obj?.receiver,
-        unreadMsg: unreadMsg,
+        unreadMsg,
         lastMsg: obj?.messages[obj?.messages?.length - 1],
       };
     });
   }
 
   return conversation ?? [];
-}
+};
+
+const updateMessageStatus = async (currentUser, sentByUser) => {
+  const conversation = await ConversationModel.findOne({
+    $or: [
+      { sender: currentUser?._id, receiver: sentByUser },
+      { sender: sentByUser, receiver: currentUser?._id },
+    ],
+  });
+
+  const conversationMessages = conversation?.messages || [];
+
+  await MessageModel.updateMany(
+    { _id: { $in: conversationMessages }, sentBy: sentByUser },
+    { $set: { read: true } },
+  );
+};
 
 module.exports = {
   createConversation,
   updateConversation,
+  getMessages,
   getConversationMessages,
+  updateMessageStatus,
 };

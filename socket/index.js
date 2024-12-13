@@ -2,7 +2,6 @@ const express = require('express');
 const { Server } = require('socket.io');
 const http = require('http');
 const { userService, conversationService } = require('../services');
-const ConversationModel = require('../models/conversation.model');
 
 const app = express();
 const server = http.createServer(app);
@@ -18,11 +17,11 @@ const onlineUsers = new Set();
 
 io.on('connection', async (socket) => {
   const token = socket.handshake.auth.token;
-  const user = await userService.getUserDataFromToken(token);
+  const currentUser = await userService.getUserDataFromToken(token);
 
-  socket.join(user?._id?.toString());
+  socket.join(currentUser?._id?.toString());
 
-  onlineUsers.add(user?._id?.toString());
+  onlineUsers.add(currentUser?._id?.toString());
 
   io.emit('onlineUsers', [...onlineUsers]);
 
@@ -40,48 +39,33 @@ io.on('connection', async (socket) => {
 
     socket.emit('chat user', payload);
 
-    const getConversationMessage = await ConversationModel.findOne({
-      $or: [
-        { sender: user?._id, receiver: userId },
-        { sender: userId, receiver: user?._id },
-      ],
-    })
-      .populate('messages')
-      .sort({ updatedAt: -1 });
+    const messages = await conversationService.getMessages(currentUser, userId);
 
-    socket.emit('messages', getConversationMessage?.messages || []);
+    socket.emit('messages', messages);
   });
 
-  socket.on('new message', async (data) => {
+  socket.on('new message', async (newMsg) => {
     const {
       conversation,
       message,
-    } = await conversationService.createConversation(data);
+    } = await conversationService.createConversation(newMsg);
 
     const conversationMessages = await conversationService.updateConversation(
-      data,
+      newMsg,
       conversation,
-      message
+      message,
     );
 
-    io.to(data?.sender).emit(
-      'messages',
-      conversationMessages?.messages,
-      message.quote || []
-    );
-    io.to(data?.receiver).emit(
-      'messages',
-      conversationMessages?.messages || []
-    );
+    io.to(newMsg?.sender).emit('messages', conversationMessages);
 
     const conversationSender = await conversationService.getConversationMessages(
-      data?.sender
+      newMsg?.sender
     );
     const conversationReceiver = await conversationService.getConversationMessages(
-      data?.receiver
+      newMsg?.receiver
     );
-    io.to(data?.sender).emit('conversation', conversationSender);
-    io.to(data?.receiver).emit('conversation', conversationReceiver);
+    io.to(newMsg?.sender).emit('conversation', conversationSender);
+    io.to(newMsg?.receiver).emit('conversation', conversationReceiver);
   });
 
   socket.on('sidebar', async (currentUserId) => {
@@ -91,8 +75,24 @@ io.on('connection', async (socket) => {
     socket.emit('conversation', conversation);
   });
 
+  socket.on('read messages', async (sentByUser) => {
+    await conversationService.updateMessageStatus(currentUser, sentByUser);
+
+    const conversationSender = await conversationService.getConversationMessages(
+      currentUser?._id?.toString()
+    );
+    const conversationReceiver = await conversationService.getConversationMessages(
+      sentByUser
+    );
+    io.to(currentUser?._id?.toString()).emit(
+      'conversation',
+      conversationSender
+    );
+    io.to(sentByUser).emit('conversation', conversationReceiver);
+  });
+
   socket.on('disconnect', () => {
-    onlineUsers.delete(user?._id);
+    onlineUsers.delete(currentUser?._id?.toString());
   });
 });
 
@@ -100,3 +100,4 @@ module.exports = {
   app,
   server,
 };
+
